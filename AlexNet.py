@@ -3,71 +3,59 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 from data_config.cifar10 import img_size, num_channels, num_classes
+from AlexNet_Model import AlexNet_Model
+import os
+import time
+import argparse
 
+def configure():
+    # training
+    flags = tf.app.flags
+    flags.DEFINE_integer('max_step', 100, '# of step for training')
+    flags.DEFINE_integer('test_interval', 100, '# of interval to test a model')
+    flags.DEFINE_integer('save_interval', 0, '# of interval to save a model')
+    flags.DEFINE_integer('summary_interval', 100, '# of step to save the summary')
+    flags.DEFINE_float('learning_rate', 1e-4, 'learning rate')
+    # data
+    flags.DEFINE_string('data_dir', '/tempspace/wzhang/bigneuron/PixelDCN-feature-3d/dataset/', 'Name of data directory')
+    flags.DEFINE_string('train_data', 'train_data/train.txt', 'Training data')
+    flags.DEFINE_string('valid_data', 'train_data/val.txt', 'Validation data')
 
-def plot_images(images, cls_true, cls_pred=None, smooth=True):
-    assert len(images) == len(cls_true) == 9
+    flags.DEFINE_float('input_shape',[ 32, 32, 3],'input shape')
+    flags.DEFINE_float('conv1_shape', [4, 4, 3, 22], 'conv1 shape')
+    flags.DEFINE_float('conv2_shape', [2, 2, 22, 52], 'conv2 shape')
+    flags.DEFINE_float('conv3_shape', [2, 2, 52, 75], 'conv3 shape')
+    flags.DEFINE_float('conv4_shape', [2, 2, 75, 70], 'conv4 shape')
+    flags.DEFINE_float('fc_lay1_shape', [630,256], 'FC Lay1 shape')
+    flags.DEFINE_float('fc_lay2_shape', [256,256], 'FC Lay2 shape')
+    flags.DEFINE_float('output_shape',[256,10],'output shape')
+    # Debug
+    flags.DEFINE_string('logdir', '../logdir', 'Log dir')
+    flags.DEFINE_string('modeldir', '../models', 'Model dir')
+    flags.DEFINE_string('sampledir', './samples/', 'Sample directory')
+    flags.DEFINE_string('model_name', 'model', 'Model file name')
+    flags.DEFINE_integer('reload_step',0, 'Reload step to continue training')
+    flags.DEFINE_integer('test_step', 0, 'Test or predict model at this step')
+    flags.DEFINE_integer('random_seed', int(time.time()), 'random seed')
 
-    # Create figure with sub-plots.
-    fig, axes = plt.subplots(3, 3)
+    # fix bug of flags
+    flags.FLAGS.__dict__['__parsed'] = False
+    return flags.FLAGS
 
-    # Adjust vertical spacing if we need to print ensemble and best-net.
-    if cls_pred is None:
-        hspace = 0.3
+def main(_):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--action', dest='action', type=str, default='train',
+                        help='actions: train, test, or predict')
+    args = parser.parse_args()
+    if args.action not in ['train', 'test', 'predict']:
+        print('invalid action: ', args.action)
+        print("Please input a action: train, test, or predict")
     else:
-        hspace = 0.6
-    fig.subplots_adjust(hspace=hspace, wspace=0.3)
-
-    for i, ax in enumerate(axes.flat):
-        # Interpolation type.
-        if smooth:
-            interpolation = 'spline16'
-        else:
-            interpolation = 'nearest'
-
-        # Plot image.
-        ax.imshow(images[i, :, :, :],
-                  interpolation=interpolation)
-
-        # Name of the true class.
-        cls_true_name = class_names[cls_true[i]]
-
-        # Show true and predicted classes.
-        if cls_pred is None:
-            xlabel = "True: {0}".format(cls_true_name)
-        else:
-            # Name of the predicted class.
-            cls_pred_name = class_names[cls_pred[i]]
-
-            xlabel = "True: {0}\nPred: {1}".format(cls_true_name, cls_pred_name)
-
-        # Show the classes as the label on the x-axis.
-        ax.set_xlabel(xlabel)
-
-        # Remove ticks from the plot.
-        ax.set_xticks([])
-        ax.set_yticks([])
-
-    # Ensure the plot is shown correctly with multiple plots
-    # in a single Notebook cell.
-    plt.show()
+        model = AlexNet_Model(tf.Session(), configure())
+        getattr(model, args.action)()
 
 
-
-cifar10.maybe_download_and_extract()
-class_names = cifar10.load_class_names()
-print(class_names)
-images_train, cls_train, labels_train = cifar10.load_training_data()
-images_test, cls_test, labels_test = cifar10.load_test_data()
-print("Size of:")
-print("- Training-set:\t\t{}".format(len(images_train)))
-print("- Test-set:\t\t{}".format(len(images_test)))
-
-# Get the first images from the test-set.
-images = images_test[0:9]
-
-# Get the true classes for those images.
-cls_true = cls_test[0:9]
-
-# Plot the images and labels using our helper-function above.
-plot_images(images=images, cls_true=cls_true, smooth=False)
+if __name__ == '__main__':
+    # configure which gpu or cpu to use
+    #os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+    tf.app.run()
